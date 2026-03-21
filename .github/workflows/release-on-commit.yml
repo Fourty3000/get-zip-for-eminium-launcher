@@ -1,0 +1,66 @@
+name: Release ZIP on Commit
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Delete existing tag
+        run: |
+          git push origin :refs/tags/ZIP || true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Delete existing release
+        run: |
+          RELEASE_ID=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            https://api.github.com/repos/${{ github.repository }}/releases \
+            | jq -r '.[] | select(.tag_name=="ZIP") | .id' | head -1)
+
+          if [ ! -z "$RELEASE_ID" ]; then
+            curl -X DELETE \
+              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID
+          fi
+        continue-on-error: true
+
+      - name: Create ZIP file
+        run: |
+          zip -r ZIP.zip . -x ".git/*" ".github/*" "*.zip"
+
+      - name: Create new tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a ZIP -m "Automated release on commit $(git rev-parse --short HEAD)"
+          git push origin ZIP
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ZIP
+          files: ZIP.zip
+          body: |
+            Automated release created on commit ${{ github.sha }}
+
+            This release is automatically updated on every commit to the main branch.
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Clean up
+        run: |
+          rm -f ZIP.zip
