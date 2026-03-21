@@ -38,7 +38,7 @@ jobs:
 
       - name: Create ZIP file
         run: |
-          zip -r ZIP.zip . -x ".git/*" ".github/*" "*.zip"
+          zip -r ZIP.zip . -x ".git/*" ".github/*" "*.zip" || true
 
       - name: Create new tag
         run: |
